@@ -1,3 +1,17 @@
+"""
+==============================================================================
+    Project Title   : Cardiovascular Disease Prediction using Spark
+    Author          : Devon Midkiff
+    Class           : SAT 5165
+    Version         : 1.0
+    Date Created    : 10/15/2024
+    Date Modified   : 10/15/2024
+    Description     : This project performs preprocessing and logistic regression
+                      analysis to predict the likelihood of cardiovascular disease.
+                      The project uses Spark for distributed processing.
+==============================================================================
+"""
+
 import time
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, when
@@ -9,20 +23,19 @@ from pyspark.sql import functions as F
 # Start timer for performance comparison
 start_time = time.time()
 
-# Step 1: Initialize Spark session
+# Initializing spark session
 spark = SparkSession.builder \
     .appName("Cardiovascular Disease Analysis") \
     .config("spark.driver.bindAddress", "192.168.13.140") \
     .config("spark.driver.port", "7077") \
     .getOrCreate()
 
-spark.sparkContext.setLogLevel("ERROR")
+spark.sparkContext.setLogLevel("ERROR") # Setting the error level so the console isn't clogged up.
 
-# Step 2: Load the dataset
-df = spark.read.csv("/mnt/shared_folder/CVD_cleaned.csv", header=True, inferSchema=True)
 
-# Step 3: Preprocessing - Convert categorical features to ordinal values
-# Convert 'Checkup' column
+df = spark.read.csv("/mnt/shared_folder/CVD_cleaned.csv", header=True, inferSchema=True) # Loading the dataset csv
+
+# Convert categorical features to ordinal values for machine learning
 df = df.withColumn('Checkup', 
     when(col('Checkup') == 'Within the past year', 1)
     .when(col('Checkup') == 'Within the past 2 years', 2)
@@ -30,7 +43,6 @@ df = df.withColumn('Checkup',
     .when(col('Checkup') == '5 or more years ago', 4)
     .otherwise(5))
 
-# Convert 'General_Health' column
 df = df.withColumn('General_Health', 
     when(col('General_Health') == 'Excellent', 1)
     .when(col('General_Health') == 'Very Good', 2)
@@ -38,7 +50,6 @@ df = df.withColumn('General_Health',
     .when(col('General_Health') == 'Fair', 4)
     .otherwise(5))
 
-# Convert 'Age_Category' column to ordinal values
 df = df.withColumn('Age_Category', 
     when(col('Age_Category') == '18-24', 1)
     .when(col('Age_Category') == '25-29', 2)
@@ -55,21 +66,20 @@ df = df.withColumn('Age_Category',
     .when(col('Age_Category') == '80+', 13)
     .otherwise(None))
 
-# Step 4: Convert boolean features to integers
+# Convert boolean features to integers
 boolean_cols = [
     'Exercise', 'Heart_Disease', 'Skin_Cancer', 
     'Other_Cancer', 'Depression', 'Diabetes', 
     'Arthritis', 'Smoking_History', 'Sex'
 ]
 
-# Convert 'Yes'/'No' to 1/0, and 'Male'/'Female' to 1/0
 for col_name in boolean_cols:
     if col_name == 'Sex':
         df = df.withColumn(col_name, when(col(col_name) == 'Male', 1).otherwise(0))
     else:
         df = df.withColumn(col_name, when(col(col_name) == 'Yes', 1).otherwise(0))
 
-# Step 5: Scale numerical features
+# Scaling numerical values to help make data less biased
 scale_cols = [
     'Alcohol_Consumption', 'Fruit_Consumption', 
     'Green_Vegetables_Consumption', 'FriedPotato_Consumption',
@@ -88,7 +98,7 @@ scaler_model = scaler.fit(df_scaled)
 df = scaler_model.transform(df_scaled)
 df = df.repartition(4)
 
-# Step 6: Correlation Analysis
+# Correlation Analysis between features that are normally considered connected to CVD
 features_to_correlate = ['BMI', 'Alcohol_Consumption', 'Smoking_History', 'Age_Category']
 correlation_matrix = {}
 for feature in features_to_correlate:
@@ -96,7 +106,7 @@ for feature in features_to_correlate:
     correlation_matrix[feature] = correlation
     print(f"Correlation between {feature} and Heart_Disease: {correlation}")
 
-# Step 7: Logistic Regression
+# Logistic regression 
 assembler = VectorAssembler(inputCols=features_to_correlate, outputCol="features")
 df = assembler.transform(df)
 
